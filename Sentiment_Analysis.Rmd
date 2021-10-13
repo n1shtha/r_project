@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r load_packages, echo = FALSE}
+```{r load_packages, echo = FALSE, include = FALSE}
 library(dplyr)
 library(tidyverse)
 library(tidytext)
@@ -22,9 +22,7 @@ library(widyr)
 library(ggthemes)
 ```
 
-*Reading all H.G Wells texts into wells_corpus*
-
-```{r batch_import, echo = FALSE}
+```{r batch_import, echo = FALSE, include = FALSE}
 corpus <-
   list.files(pattern = "*.txt") %>% #grab a list of all the files with .txt extension
   map_df(~ data_frame(  #the map function performs the same command on all parts of the data set. In this case the .txt files
@@ -47,32 +45,24 @@ corpus <-
   mutate(title = str_squish(title)) #trim title
 ```
 
-*Saving backups in csv format*
-
-```{r csv_backups, echo = FALSE}
+```{r csv_backups, echo = FALSE, include = FALSE}
 write_csv(corpus, "corpus.csv")
 ```
 
-*Creating cluster of women-related words*
-
-```{r create_cluster, echo = FALSE}
+```{r create_cluster, echo = FALSE, include = FALSE}
 women_cluster <- c("women", "women", "mother", "daughter", "sister", "girl", "lady", "maid", "grandmother", "matron", "governess", "lover", "partner", "affair", "infidelity", "romance", "amorous", "wife", "marriage", "female", "feminine", "girlfriend", "seductress", "lass", "desire", "sexual", "sex", "madame", "breast", "bosom", "princess", "queen", "maiden", "aunt", "mrs", "ms", "caress", "gal", "dame", "pretty", "beautiful", "love")
 
 women_df <- data_frame(word = women_cluster, women = TRUE)
 ```
 
-*Dividing corpus by sentences*
-
-```{r all_author_sentence, echo = FALSE}
+```{r all_author_sentence, echo = FALSE, include = FALSE}
 corpus_sentence <- corpus %>%
   dplyr::group_by(author, date, title, text) %>%
   dplyr::summarise (text = paste(text, collapse = "")) %>%
   unnest_regex(sentences, text, pattern = "[.?!]", to_lower = FALSE)
 ```
 
-*Breaking down sentences into words*
-
-```{r author_sentence_nr, echo = FALSE}
+```{r author_sentence_nr, echo = FALSE, include = FALSE}
 corpus_sentence_nr <- corpus_sentence %>%
   ungroup() %>%
   dplyr::mutate(sentence_number = row_number()) %>%
@@ -81,21 +71,17 @@ corpus_sentence_nr <- corpus_sentence %>%
   anti_join(stop_words)
 ```
 
-*Matching cluster of women-related words and all words in corpus*
-
-```{r author_concept, echo = FALSE}
+```{r author_concept, echo = FALSE, include = FALSE}
 corpus_concept <- corpus_sentence_nr %>%
   left_join(women_df)
 ```
 
-*Matching tagged words with the bing lexicon*
-
-```{r author_concept_bing, echo = FALSE}
+```{r author_concept_bing, echo = FALSE, include = FALSE}
 concept_bing <- corpus_concept %>%
   inner_join(get_sentiments("bing"))
 ```
 
-```{r author_sentiment_total, echo = FALSE}
+```{r author_sentiment_total, echo = FALSE, include = FALSE}
 bing_sentiment_total <- concept_bing %>%
   dplyr::count(sentence_number, sentiment) %>%
   pivot_wider(names_from = sentiment,
@@ -106,7 +92,7 @@ bing_sentiment_total <- concept_bing %>%
   filter(women == TRUE)
 ```
 
-```{r author_sentiment_tabler, echo = FALSE}
+```{r author_sentiment_tabler, echo = FALSE, include = FALSE}
 bing_sentiment_table <- bing_sentiment_total %>%
   pivot_longer(women,
                names_to = "concept",
@@ -157,26 +143,26 @@ bing_sentiment_table %>%
 
 -------------------------------------------------------------------------------------------------------
 
-```{r create_clusterr, echo = FALSE}
+```{r create_clusterr, echo = FALSE, include = FALSE}
 sci_cluster <- c("invention", "invent", "invented", "machine", "machinery", "machines", "mechanic", "mechanical", "mechanics", "mechanise", "mechanisation", "mechanism", "device", "devices", "engine", "engineer", "science", "scientist", "professor", "workshop", "garage", "gadget", "vehicle", "technology", "technical", "techie", "technician", "electrician", "electric", "automated", "automation", "education", "scientific", "progress", "industrial", "training", "school", "development", "research", "physiography", "metallurgy", "medicine", "sociology", "energy", "electricity", "psychology", "laboratory", "laboratories", "experiment", "experiments", "discovery", "discoveries", "biology", "apparatus", "physicist", "geologist", "biologist", "geography", "chemist", "physics", "chemistry")
 
 sci_df <- data_frame(word = sci_cluster, science = TRUE)
 ```
 
-```{r author_conceptr, eval = FALSE}
+```{r author_conceptr, eval = FALSE, echo = FALSE}
 corpus_concept2 <- corpus_sentence_nr %>%
   left_join(women_df) %>%
   left_join(sci_df)
 ```
 
-```{r freq_taggedr, eval = FALSE}
+```{r freq_taggedr, eval = FALSE, echo = FALSE}
 freq_concept <- corpus_concept2 %>%
   dplyr::group_by(author, title, sentence_number, women, science) %>%
   dplyr::summarise(freq_women = sum(women, na.rm = TRUE / n()), freq_sci = sum(science, na.rm = TRUE / n())) %>%
   dplyr::filter(freq_women == TRUE | freq_science == TRUE)
 ```
 
-```{r unnest_paragraphs_words, eval = FALSE}
+```{r unnest_paragraphs_words, eval = FALSE, echo = FALSE}
 unnested__by_paragraph <- corpus %>%
   group_by(author, date, title, text) %>%
   unnest_paragraphs(paragraph, text, paragraph_break = "\n") %>%
@@ -186,14 +172,14 @@ unnested__by_paragraph <- corpus %>%
   unnest_tokens(word, paragraph)
 ```
 
-```{r add_sentiment_topic, eval = FALSE}
+```{r add_sentiment_topic, eval = FALSE, echo = FALSE}
 corpus_sentiment_topic <- unnested__by_paragraph %>%
   left_join((get_sentiments("bing"))) %>%
   left_join(women_df) %>%
   left_join(sci_df) 
 ```
 
-```{r sentiment_by_paragraph, eval = FALSE}
+```{r sentiment_by_paragraph, eval = FALSE, echo = FALSE}
 sentiment_by_paragraph <-  corpus_sentiment_topic %>%
   group_by (author, title, date, para_number) %>%
   mutate(sentiment = if_else(is.na(sentiment), "no_sentiment", sentiment)) %>%
@@ -201,7 +187,7 @@ sentiment_by_paragraph <-  corpus_sentiment_topic %>%
   pivot_wider(names_from = sentiment, values_from = n)
 ```
 
-```{r romance_technology, eval = FALSE}
+```{r romance_technology, eval = FALSE, echo = FALSE}
 women_sci <- sentiment_by_paragraph %>%
   mutate(women_sci = if_else(women == TRUE &
                                         science == TRUE, TRUE, FALSE))  %>%
