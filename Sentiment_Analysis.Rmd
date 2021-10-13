@@ -1,0 +1,209 @@
+---
+title: "Sentiment_Analysis"
+author: "Nishtha Das"
+date: "12/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_packages, echo = FALSE}
+library(dplyr)
+library(tidyverse)
+library(tidytext)
+library(tidyverse)
+library(scales)
+library(plyr)
+library(readr)
+library(humaniformat)
+library(widyr)
+library(ggthemes)
+```
+
+*Reading all H.G Wells texts into wells_corpus*
+
+```{r batch_import, echo = FALSE}
+corpus <-
+  list.files(pattern = "*.txt") %>% #grab a list of all the files with .txt extension
+  map_df(~ data_frame(  #the map function performs the same command on all parts of the data set. In this case the .txt files
+    text = read_file(.), #read the files
+    date = ifelse(
+      str_detect(basename(.), "[:digit:]{4}") == TRUE,
+      str_extract(basename(.), "[:digit:]{4}"),
+      NA
+    ) #see if there is a date in yyyy format, i.e. 1987, and extract the date, if it can't fine date NA
+  )) %>%
+  mutate(author = str_extract(text, "(?<=Author:).*")) %>% #extract the text after Author: in the document as author
+  mutate(author = str_squish(author)) %>% #remove any whitespace
+  mutate(author = ifelse(
+    str_detect(author, ",") == FALSE,
+    paste(last_name(author), ", ",
+          first_name(author), sep = ""),
+    author
+  )) %>% #detect whether this is First Name Last Name or Last Name, First Name and switch
+  mutate(title = str_extract(text, "(?<=Title:).*")) %>% #grab title
+  mutate(title = str_squish(title)) #trim title
+```
+
+*Saving backups in csv format*
+
+```{r csv_backups, echo = FALSE}
+write_csv(corpus, "corpus.csv")
+```
+
+*Creating cluster of women-related words*
+
+```{r create_cluster, echo = FALSE}
+women_cluster <- c("women", "women", "mother", "daughter", "sister", "girl", "lady", "maid", "grandmother", "matron", "governess", "lover", "partner", "affair", "infidelity", "romance", "amorous", "wife", "marriage", "female", "feminine", "girlfriend", "seductress", "lass", "desire", "sexual", "sex", "madame", "breast", "bosom", "princess", "queen", "maiden", "aunt", "mrs", "ms", "caress", "gal", "dame", "pretty", "beautiful", "love")
+
+women_df <- data_frame(word = women_cluster, women = TRUE)
+```
+
+*Dividing corpus by sentences*
+
+```{r all_author_sentence, echo = FALSE}
+corpus_sentence <- corpus %>%
+  dplyr::group_by(author, date, title, text) %>%
+  dplyr::summarise (text = paste(text, collapse = "")) %>%
+  unnest_regex(sentences, text, pattern = "[.?!]", to_lower = FALSE)
+```
+
+*Breaking down sentences into words*
+
+```{r author_sentence_nr, echo = FALSE}
+corpus_sentence_nr <- corpus_sentence %>%
+  ungroup() %>%
+  dplyr::mutate(sentence_number = row_number()) %>%
+  group_by(author, date, title, sentence_number) %>%
+  unnest_tokens(word, sentences) %>%
+  anti_join(stop_words)
+```
+
+*Matching cluster of women-related words and all words in corpus*
+
+```{r author_concept, echo = FALSE}
+corpus_concept <- corpus_sentence_nr %>%
+  left_join(women_df)
+```
+
+*Matching tagged words with the bing lexicon*
+
+```{r author_concept_bing, echo = FALSE}
+concept_bing <- corpus_concept %>%
+  inner_join(get_sentiments("bing"))
+```
+
+```{r author_sentiment_total, echo = FALSE}
+bing_sentiment_total <- concept_bing %>%
+  dplyr::count(sentence_number, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0)  %>%
+  dplyr::mutate(sentiment = positive - negative) %>%
+  left_join(corpus_concept) %>%
+  filter(women == TRUE)
+```
+
+```{r author_sentiment_tabler, echo = FALSE}
+bing_sentiment_table <- bing_sentiment_total %>%
+  pivot_longer(women,
+               names_to = "concept",
+               values_to = "total_sentiment")  %>%
+  drop_na() %>%
+  dplyr::group_by(author, date, title, concept) %>%
+  dplyr::summarise (total = sum(sentiment)) %>%
+  ungroup()
+```
+
+## GRAPH 1
+
+```{r author_sentiment_plot, echo = FALSE}
+bing_sentiment_table %>%
+  ggplot(aes(x = title, y = total, fill = author)) +
+  geom_col(color = "black",
+           alpha = 0.4,
+           position = "identity") +
+           scale_x_discrete(label = function(x) stringr::str_trunc(x, 24)) +
+  facet_wrap(~ concept) +
+  labs(title = "Positive and Negative Sentiment",
+       x = "Title",
+       y = "Overall Sentiment",
+       fill = "Author") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+```
+
+## GRAPH 2
+
+```{r author_sentiment_plotr, echo = FALSE}
+bing_sentiment_table %>%
+  ggplot(aes(reorder(title, -total), y = total, fill = author)) +
+  geom_col(color = "black",
+           alpha = 0.4,
+           position = "identity") +
+           scale_x_discrete(label = function(x) stringr::str_trunc(x, 24)) +
+  facet_wrap(~ concept) +
+  labs(title = "Positive and Negative Sentiment",
+       x = "Title",
+       y = "Overall Sentiment",
+       fill = "Author") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+```
+
+-------------------------------------------------------------------------------------------------------
+
+```{r create_clusterr, echo = FALSE}
+sci_cluster <- c("invention", "invent", "invented", "machine", "machinery", "machines", "mechanic", "mechanical", "mechanics", "mechanise", "mechanisation", "mechanism", "device", "devices", "engine", "engineer", "science", "scientist", "professor", "workshop", "garage", "gadget", "vehicle", "technology", "technical", "techie", "technician", "electrician", "electric", "automated", "automation", "education", "scientific", "progress", "industrial", "training", "school", "development", "research", "physiography", "metallurgy", "medicine", "sociology", "energy", "electricity", "psychology", "laboratory", "laboratories", "experiment", "experiments", "discovery", "discoveries", "biology", "apparatus", "physicist", "geologist", "biologist", "geography", "chemist", "physics", "chemistry")
+
+sci_df <- data_frame(word = sci_cluster, science = TRUE)
+```
+
+```{r author_conceptr, eval = FALSE}
+corpus_concept2 <- corpus_sentence_nr %>%
+  left_join(women_df) %>%
+  left_join(sci_df)
+```
+
+```{r freq_taggedr, eval = FALSE}
+freq_concept <- corpus_concept2 %>%
+  dplyr::group_by(author, title, sentence_number, women, science) %>%
+  dplyr::summarise(freq_women = sum(women, na.rm = TRUE / n()), freq_sci = sum(science, na.rm = TRUE / n())) %>%
+  dplyr::filter(freq_women == TRUE | freq_science == TRUE)
+```
+
+```{r unnest_paragraphs_words, eval = FALSE}
+unnested__by_paragraph <- corpus %>%
+  group_by(author, date, title, text) %>%
+  unnest_paragraphs(paragraph, text, paragraph_break = "\n") %>%
+  ungroup() %>%
+  mutate(para_number = cumsum(paragraph == " ")) %>%
+  group_by(author, date, title, para_number) %>%
+  unnest_tokens(word, paragraph)
+```
+
+```{r add_sentiment_topic, eval = FALSE}
+corpus_sentiment_topic <- unnested__by_paragraph %>%
+  left_join((get_sentiments("bing"))) %>%
+  left_join(women_df) %>%
+  left_join(sci_df) 
+```
+
+```{r sentiment_by_paragraph, eval = FALSE}
+sentiment_by_paragraph <-  corpus_sentiment_topic %>%
+  group_by (author, title, date, para_number) %>%
+  mutate(sentiment = if_else(is.na(sentiment), "no_sentiment", sentiment)) %>%
+  dplyr::count(sentiment, women, science) %>%
+  pivot_wider(names_from = sentiment, values_from = n)
+```
+
+```{r romance_technology, eval = FALSE}
+women_sci <- sentiment_by_paragraph %>%
+  mutate(women_sci = if_else(women == TRUE &
+                                        science == TRUE, TRUE, FALSE))  %>%
+  filter(women == TRUE | science == TRUE)
+```
