@@ -1,0 +1,108 @@
+---
+title: "Topic_Collocates"
+author: "Nishtha Das"
+date: "14/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_packages, echo = FALSE, include = FALSE}
+library(dplyr)
+library(tidyverse)
+library(tidytext)
+library(tidyverse)
+library(scales)
+library(plyr)
+library(readr)
+library(humaniformat)
+library(widyr)
+library(ggthemes)
+library(wordcloud)
+library(RColorBrewer)
+library(wordcloud2)
+```
+
+```{r batch_import, echo = FALSE, include = FALSE}
+corpus <-
+  list.files(pattern = "*.txt") %>% #grab a list of all the files with .txt extension
+  map_df(~ data_frame(  #the map function performs the same command on all parts of the data set. In this case the .txt files
+    text = read_file(.), #read the files
+    date = ifelse(
+      str_detect(basename(.), "[:digit:]{4}") == TRUE,
+      str_extract(basename(.), "[:digit:]{4}"),
+      NA
+    ) #see if there is a date in yyyy format, i.e. 1987, and extract the date, if it can't fine date NA
+  )) %>%
+  mutate(author = str_extract(text, "(?<=Author:).*")) %>% #extract the text after Author: in the document as author
+  mutate(author = str_squish(author)) %>% #remove any whitespace
+  mutate(author = ifelse(
+    str_detect(author, ",") == FALSE,
+    paste(last_name(author), ", ",
+          first_name(author), sep = ""),
+    author
+  )) %>% #detect whether this is First Name Last Name or Last Name, First Name and switch
+  mutate(title = str_extract(text, "(?<=Title:).*")) %>% #grab title
+  mutate(title = str_squish(title)) #trim title
+```
+
+```{r csv_backups, echo = FALSE, include = FALSE}
+write_csv(corpus, "corpus.csv")
+```
+
+```{r create_cluster, echo = FALSE, include = FALSE}
+women_cluster <- c("women", "women", "mother", "daughter", "sister", "girl", "lady", "maid", "grandmother", "matron", "governess", "lover", "partner", "affair", "infidelity", "romance", "amorous", "wife", "marriage", "female", "feminine", "girlfriend", "seductress", "lass", "desire", "sexual", "sex", "madame", "breast", "bosom", "princess", "queen", "maiden", "aunt", "mrs", "ms", "caress", "gal", "dame", "pretty", "beautiful", "love")
+
+women_df <- data_frame(word = women_cluster, women = TRUE)
+```
+
+```{r create_clusterr, echo = FALSE, include = FALSE}
+sci_cluster <- c("invention", "invent", "invented", "machine", "machinery", "machines", "mechanic", "mechanical", "mechanics", "mechanise", "mechanisation", "mechanism", "device", "devices", "engine", "engineer", "science", "scientist", "professor", "workshop", "garage", "gadget", "vehicle", "technology", "technical", "techie", "technician", "electrician", "electric", "automated", "automation", "education", "scientific", "progress", "industrial", "training", "school", "development", "research", "physiography", "metallurgy", "medicine", "sociology", "energy", "electricity", "psychology", "laboratory", "laboratories", "experiment", "experiments", "discovery", "discoveries", "biology", "apparatus", "physicist", "geologist", "biologist", "geography", "chemist", "physics", "chemistry")
+
+sci_df <- data_frame(word = sci_cluster, science = TRUE)
+```
+
+*Topic collocates, unnesting by n-grams*
+
+```{r create_ngrams}
+corpus_ngram <- corpus %>% 
+                group_by(author, title, date, text) %>% 
+                unnest_ngrams(ngram,text,n=3) #change this number to get more of fewer words
+```
+
+```{r ngram_count}
+ngram_count <- corpus_ngram %>% 
+                dplyr::count(ngram)
+```
+
+```{r filter_women, warning=FALSE}
+women_ngrams <- ngram_count %>% 
+                  filter(str_detect(ngram, women_df$word))
+```
+
+```{r clean_ngrams}
+women_ngrams_clean <- women_ngrams %>% 
+                        filter(n>1)%>% 
+                  arrange(title, desc(n))
+```
+
+```{r}
+wordcloud(words = women_ngrams_clean$ngram, freq = women_ngrams_clean$n, min.freq = 2, max.words = 50, random.order = FALSE, rot.per = 0.35, colors = brewer.pal(8, "Dark2"))
+```
+
+```{r filter_women, warning=FALSE}
+science_ngrams <- ngram_count %>% 
+                  filter(str_detect(ngram, sci_df$word)) 
+```
+
+```{r clean_ngrams}
+science_ngrams_clean <- science_ngrams %>% 
+                        filter(n>1)%>% 
+                  arrange(title, desc(n))
+```
+
+```{r}
+wordcloud(words = science_ngrams_clean$ngram, freq = science_ngrams_clean$n, min.freq = 2, max.words = 50, random.order = FALSE, rot.per = 0.35, colors = brewer.pal(8, "Dark2"))
+```
